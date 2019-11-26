@@ -2,31 +2,15 @@ import torch
 from torch import Tensor, LongTensor
 from fastai.metrics import auc_roc_score, fbeta
 
-
-def auc_roc_score_multi(input, targ):
-    """area under curve for multi category list (multiple bce losses)."""
-    n = input.shape[1]
-    targ = targ * 1
-    if targ.shape != input.shape:
-        targ = targ.expand(input.T.shape).T
-    scores = [auc_roc_score(input[:, i], targ[:, i]) for i in range(n)]
-    return torch.tensor(scores).mean()
-
-
 def fbeta_cls_n(y_pred, y_true, class_n=1, **args):
     """F1 score of class 1, to be used with 2 classes."""
     y_pred = torch.nn.functional.softmax(y_pred, dim=-1)
     return fbeta(y_pred, y_true[:, None], sigmoid=False, **args)
 
 def auc_roc_score_cls_n(y_pred, y_true, class_n=1, **args):
-    """F1 score of class 1, to be used with 2 classes."""
+    """auc_roc_score score of class 1, to be used with 2 classes."""
     y_pred = torch.nn.functional.softmax(y_pred, dim=-1)
     return auc_roc_score(y_pred[:, class_n], y_true==class_n, **args)
-
-
-def fbeta_binary(y_pred, y_true, **args):
-    return fbeta(y_pred[:, None], y_true[:, None], **args)
-
 
 def auc_roc_score(input: Tensor, targ: Tensor):
     "Computes the area under the receiver operator characteristic (ROC) curve using the trapezoid method. Restricted binary classification tasks."
@@ -62,16 +46,3 @@ def roc_curve(input: Tensor, targ: Tensor):
 def accuracy_binary(input, targs):
     input = torch.sigmoid(input) > 0.5
     return (input == targs).float().mean()
-
-
-def dice_binary(input, targs, iou=False, eps=1e-8):
-    "Dice coefficient metric for binary target. If iou=True, returns iou metric, classic for segmentation problems."
-    input = torch.sigmoid(input) > 0.5
-    intersect = (input * targs).sum(dim=1).float()
-    union = (input + targs).sum(dim=1).float()
-    if not iou:
-        l = 2.0 * intersect / union
-    else:
-        l = intersect / (union - intersect + eps)
-    l[union == 0.0] = 1.0
-    return l.mean()
