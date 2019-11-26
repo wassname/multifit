@@ -16,11 +16,12 @@ class BinaryCategoryList(CategoryListBase):
     def __init__(self, items:Iterator, classes:Collection=None, label_delim:str=None, **kwargs):
         super().__init__(items, classes=classes, **kwargs)
         mean = self.items.mean()
-        if mean and mean!=0:
-            weight = torch.tensor([1 / self.items.mean()]).cuda()
-        else:
-            weight = None
-            raise Exception('debug')
+        # if mean and mean != 0:
+        #     weight = torch.tensor([1 / mean]).cuda()
+        #     print(f'Weighting BCEWithLogitsFlat by {weight.item()}')
+        # else:
+        weight = None
+        # raise Exception('debug')
         self.loss_func = BCEWithLogitsFlat(weight=weight)
 
     def reconstruct(self, t):

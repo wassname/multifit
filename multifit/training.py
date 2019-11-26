@@ -5,7 +5,7 @@ import dataclasses
 from fastai.callbacks import CSVLogger, SaveModelCallback
 from fastai.text import *
 
-from multifit.metrics import auc_roc_score_multi, fbeta_binary, auc_roc_score
+from multifit.metrics import auc_roc_score_multi, fbeta_binary, auc_roc_score, accuracy_binary, dice_binary
 from multifit.datasets import ULMFiTDataset, ULMFiTTokenizer
 from fastai_contrib.data_block import BinaryCategoryList
 
@@ -351,18 +351,17 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
     fp16: bool = False
     arch: ULMFiTArchitecture = None
 
-    def get_learner(self, data_clas, eval_only=False, **additional_trn_args):
+    def get_learner(self, data_clas, eval_only=False, loss_func=None, **additional_trn_args):
         assert self.weighted_cross_entropy is None or self.label_smoothing_eps == 0, "Label smoohting not implemented with weighted_cross_entropy"
-        if self.weighted_cross_entropy is not None:
-            loss_func = CrossEntropyFlat(weight=torch.tensor(self.weighted_cross_entropy, dtype=torch.float32).cuda())
-        elif self.label_smoothing_eps > 0.0:
-            eps = self.label_smoothing_eps
-            if self.label_smoothing_eps_norm_by_classes:
-                eps = eps / data_clas.c
-            print("Using Label smoothing with eps = ", eps)
-            loss_func = FlattenedLoss(LabelSmoothingCrossEntropy, eps=eps)
-        else:
-            loss_func = None
+        if loss_func is None:
+            if self.weighted_cross_entropy is not None:
+                loss_func = CrossEntropyFlat(weight=torch.tensor(self.weighted_cross_entropy, dtype=torch.float32).cuda())
+            elif self.label_smoothing_eps > 0.0:
+                eps = self.label_smoothing_eps
+                if self.label_smoothing_eps_norm_by_classes:
+                    eps = eps / data_clas.c
+                print("Using Label smoothing with eps = ", eps)
+                loss_func = FlattenedLoss(LabelSmoothingCrossEntropy, eps=eps)
 
         set_seed(self.seed, "Classifier weights seed")
         config = awd_lstm_clas_config.copy()
@@ -381,7 +380,6 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
                                         config=config,
                                         model_dir=self.model_name,
                                         **trn_args)
-        learn.metrics =[accuracy, dice]
         learn = patch_learner(learn)
         if self.base.encoder_fname and not self.random_init:
             print("Loading pretrained model", self.base.encoder_fname)
@@ -401,13 +399,15 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
             learn.to_fp16()
         return learn
 
-    def train_(self, dataset_or_path=None, **train_config):
+
+    def train_(self, dataset_or_path=None, label_cls=None, loss_func=None, label_cols=None, metrics=[accuracy], **train_config):
         self.replace_(**train_config, _strict=True)
 
         base_tokenizer = self.base.tokenizer
         dataset = self._set_dataset_(dataset_or_path, base_tokenizer)
-        data_clas = dataset.load_clas_databunch(bs=self.bs)
-        learn = self.get_learner(data_clas=data_clas)
+        data_clas = dataset.load_clas_databunch(bs=self.bs, label_cls=label_cls, label_cols=label_cols)
+        learn = self.get_learner(data_clas=data_clas, loss_func=loss_func)
+        learn.metrics = metrics
         print(f"Training: {learn.path / learn.model_dir}")
         learn.unfreeze()
         self._fit_schedule(learn)
@@ -578,7 +578,7 @@ class ULMFiTBinaryClassifier(ULMFiTTrainingCommand):
             learn.to_fp16()
         return learn
 
-    def train_(self, dataset_or_path=None, label_cls=BinaryCategoryList, metrics=[accuracy, dice, partial(fbeta_binary, beta=1), auc_roc_score_multi], label_cols=[0,0], **train_config):
+    def train_(self, dataset_or_path=None, label_cls=BinaryCategoryList, metrics=[accuracy_binary, dice_binary, partial(fbeta_binary, beta=1), auc_roc_score_multi], label_cols=[0,0], **train_config):
         self.replace_(**train_config, _strict=True)
 
         base_tokenizer = self.base.tokenizer
