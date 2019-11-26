@@ -130,7 +130,7 @@ def make_data_bunch_from_df(cls, path: PathOrStr, train_df: DataFrame, valid_df:
             tokenizer: Tokenizer = None, vocab: Vocab = None, classes: Collection[str] = None,
             text_cols: IntsOrStrs = 1,
             label_cols: IntsOrStrs = 0, label_delim: str = None, chunksize: int = 10000,
-            max_vocab: int = 60000,
+            max_vocab: int = 60000, label_cls: Callable = None,
             min_freq: int = 2, mark_fields: bool = False, include_bos: bool = True,
             include_eos: bool = False, processor=None, **kwargs) -> DataBunch:
     "Create a `TextDataBunch` from DataFrames. `kwargs` are passed to the dataloader creation."
@@ -142,8 +142,8 @@ def make_data_bunch_from_df(cls, path: PathOrStr, train_df: DataFrame, valid_df:
                                    include_bos=include_bos, include_eos=include_eos)
 
     if classes is None and is_listy(label_cols) and len(label_cols) > 1: classes = label_cols
-    src = ItemLists(path, TextList.from_df(train_df, path, cols=text_cols, processor=processor),
-                    TextList.from_df(valid_df, path, cols=text_cols, processor=processor))
+    src = ItemLists(path, TextList.from_df(train_df, path, cols=text_cols, processor=processor, label_cls=label_cls),
+                    TextList.from_df(valid_df, path, cols=text_cols, processor=processor, label_cls=label_cls))
     if cls == TextLMDataBunch:
         src = src.label_for_lm()
     else:

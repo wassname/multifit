@@ -202,8 +202,8 @@ class ULMFiTDataset(Dataset):
 
     def load_lm_databunch(self, bs, bptt):
         lm_suffix = str(bptt) if bptt != 70 else ""
-        lm_suffix += "" if self.use_tst_for_lm else "-notst"
-        data_lm = self.load_n_cache_databunch(f"lm{lm_suffix}",
+        lm_suffix += "" if self.use_tst_for_lm else "-not-test"
+        data_lm = self.load_n_cache_databunch(f"lm{lm_suffix}.cache.databunch",
                                               bunch_class=TextLMDataBunch,
                                               data_loader=self.load_unsupervised_data,
                                               bptt=bptt,
@@ -223,27 +223,28 @@ class ULMFiTDataset(Dataset):
             self._vocab = self.load_lm_databunch(bs=20, bptt=70).vocab
         return self._vocab
 
-    def load_clas_databunch(self, bs):
+    def load_clas_databunch(self, bs, label_cls=None, **args):
         vocab = self._load_vocab()
 
-        cls_name = "cls"
+        cls_name = "cls.cache.databunch"
         if self.limit is not None:
             cls_name = f'{cls_name}limit{self.limit}'
         if self.noise > 0.0:
             cls_name = f'{cls_name}noise{self.noise}'
 
-        args = dict(vocab=vocab, bunch_class=TextClasDataBunch, bs=bs)
-        data_cls = self.load_n_cache_databunch(cls_name, data_loader=lambda: self.load_supervised_data()[:2], **args)
+        args.update(dict(vocab=vocab, bunch_class=TextClasDataBunch, bs=bs))
+        data_cls = self.load_n_cache_databunch(cls_name, data_loader=lambda: self.load_supervised_data()[:2], label_cls=label_cls, **args)
         # Hack to load test dataset with labels
-        data_tst = self.load_n_cache_databunch('tst', data_loader=lambda: self.load_supervised_data()[1:], **args)
+        data_tst = self.load_n_cache_databunch('tst.cache.databunch', data_loader=lambda: self.load_supervised_data()[1:], label_cls=label_cls, **args)
         data_cls.test_dl = data_tst.valid_dl # data_tst.valid_dl holds test data
         data_cls.lang = self.lang
         return data_cls
 
-    def load_n_cache_databunch(self, name, bunch_class, data_loader, bs, **args):
+    def load_n_cache_databunch(self, name, bunch_class, data_loader, bs, label_cls=None, **args):
         bunch_path = self.cache_path / name
         databunch = None
         if bunch_path.exists():
+            print(f'loading data bunch from {name}')
             try:
                 databunch = load_data(self.cache_path, name, bs=bs)
             except (AttributeError, ImportError):
@@ -251,17 +252,18 @@ class ULMFiTDataset(Dataset):
         if databunch is None:
             print(f"Running tokenization: '{name}' ...")
             train_df, valid_df = data_loader()
-            databunch = self.databunch_from_df(bunch_class, train_df, valid_df, **args)
+            databunch = self.databunch_from_df(bunch_class, train_df, valid_df, label_cls=label_cls, **args)
             databunch.save(name)
         print(f"Data {name}, trn: {len(databunch.train_ds)}, val: {len(databunch.valid_ds)}")
         return databunch
 
-    def databunch_from_df(self, bunch_class, train_df, valid_df, **args):
+    def databunch_from_df(self, bunch_class, train_df, valid_df, label_cls=None, **args):
         args.update(**self.tokenizer.get_fastai_config(dataset_uses_moses=self.uses_moses))  # TODO depends on the previous model
         databunch = make_data_bunch_from_df(cls=bunch_class,
                                             path=self.cache_path,
                                             train_df=train_df,
                                             valid_df=valid_df,
+                                            label_cls=label_cls,
                                             mark_fields=True,
                                             text_cols=list(train_df.columns.values)[1:],
                                             **args)
