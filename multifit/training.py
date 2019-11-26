@@ -5,9 +5,7 @@ import dataclasses
 from fastai.callbacks import CSVLogger, SaveModelCallback
 from fastai.text import *
 
-from multifit.metrics import auc_roc_score_multi, fbeta_binary, auc_roc_score, accuracy_binary, dice_binary
 from multifit.datasets import ULMFiTDataset, ULMFiTTokenizer
-from fastai_contrib.data_block import BinaryCategoryList
 
 CLS_BEST = 'cls_best'
 LM_BEST = "lm_best"
@@ -449,9 +447,6 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
             data_cls = self.dataset.load_clas_databunch(bs=self.bs)
 
         learn = self.get_learner(data_cls, eval_only=True)
-        # avg = 'binary' if learn.data.c == 2 else 'macro'
-        # learn.metrics = [accuracy, FBeta(beta=1.0, average=avg), Precision(average=avg), Recall(average=avg)]
-        # learn.metrics = [accuracy, fbeta, auc_roc_score,]
         learn.metrics = [accuracy, dice]
         print(f"Loading model {save_name}")
         learn.load(save_name)

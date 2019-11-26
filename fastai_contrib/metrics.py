@@ -14,7 +14,7 @@ def auc_roc_score_cls_n(y_pred, y_true, class_n=1, **args):
 
 def auc_roc_score(input: Tensor, targ: Tensor):
     "Computes the area under the receiver operator characteristic (ROC) curve using the trapezoid method. Restricted binary classification tasks."
-    fpr, tpr = roc_curve(input.squeeze(), targ.squeeze())
+    fpr, tpr = roc_curve(input, targ)
     d = fpr[1:] - fpr[:-1]
     sl1, sl2 = [slice(None)], [slice(None)]
     sl1[-1], sl2[-1] = slice(1, None), slice(None, -1)
@@ -43,6 +43,12 @@ def roc_curve(input: Tensor, targ: Tensor):
     return fpr, tpr
 
 
+def f1_score(*args, **kwargs):
+    return fbeta_cls_n(beta=1, thresh=0.5, *args, **kwargs)
+
 def accuracy_binary(input, targs):
     input = torch.sigmoid(input) > 0.5
     return (input == targs).float().mean()
+
+def mean_output(input, targs):
+    return input.mean()
