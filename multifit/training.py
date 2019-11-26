@@ -281,6 +281,7 @@ class ULMFiTPretraining(ULMFiTTrainingCommand):
         learn.destroy()
         self.save_paramters()
         print("Language model saved to", self.experiment_path)
+        return learn
 
     def validate(self):
         raise NotImplementedError("The validation on the language model is not implemented.")
@@ -400,19 +401,22 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
         return learn
 
 
-    def train_(self, dataset_or_path=None, label_cls=None, loss_func=None, label_cols=None, metrics=[accuracy], **train_config):
+    def train_(self, dataset_or_path=None, label_cls=None, loss_func=None, classes=None, label_cols=None, metrics=[accuracy], **train_config):
         self.replace_(**train_config, _strict=True)
 
         base_tokenizer = self.base.tokenizer
         dataset = self._set_dataset_(dataset_or_path, base_tokenizer)
-        data_clas = dataset.load_clas_databunch(bs=self.bs, label_cls=label_cls, label_cols=label_cols)
+        data_clas = dataset.load_clas_databunch(bs=self.bs, classes=classes, label_cls=label_cls, label_cols=label_cols)
         learn = self.get_learner(data_clas=data_clas, loss_func=loss_func)
         learn.metrics = metrics
+        print("RNN head", learn.model[-1].layers[-1])
+        print("label class", data_clas.test_ds.y)
+        print("dataset loss func", data_clas.loss_func)
         print(f"Training: {learn.path / learn.model_dir}")
         learn.unfreeze()
+        self.experiment_path = learn.path / learn.model_dir
         self._fit_schedule(learn)
 
-        self.experiment_path = learn.path / learn.model_dir
         base_tokenizer.save(self.experiment_path, learn=learn)
         learn.to_fp32()
         learn.save(CLS_BEST, with_opt=False)

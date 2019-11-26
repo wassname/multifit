@@ -13,6 +13,17 @@ def auc_roc_score_multi(input, targ):
     return torch.tensor(scores).mean()
 
 
+def fbeta_cls_n(y_pred, y_true, class_n=1, **args):
+    """F1 score of class 1, to be used with 2 classes."""
+    y_pred = torch.nn.functional.softmax(y_pred, dim=-1)
+    return fbeta(y_pred, y_true[:, None], sigmoid=False, **args)
+
+def auc_roc_score_cls_n(y_pred, y_true, class_n=1, **args):
+    """F1 score of class 1, to be used with 2 classes."""
+    y_pred = torch.nn.functional.softmax(y_pred, dim=-1)
+    return auc_roc_score(y_pred[:, class_n], y_true==class_n, **args)
+
+
 def fbeta_binary(y_pred, y_true, **args):
     return fbeta(y_pred[:, None], y_true[:, None], **args)
 

@@ -224,7 +224,6 @@ class ULMFiTDataset(Dataset):
         return self._vocab
 
     def load_clas_databunch(self, bs, label_cls=None, **args):
-        print('DEBUG', bs, label_cls, args)
         vocab = self._load_vocab()
 
         cls_name = "cls.cache.databunch"
