@@ -51,4 +51,8 @@ def accuracy_binary(input, targs):
     return (input == targs).float().mean()
 
 def mean_output(input, targs):
+    input = torch.nn.functional.softmax(input, dim=-1)[:, 1]
     return input.mean()
+
+def mean_target(input, targs):
+    return targs.float().mean()
