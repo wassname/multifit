@@ -1,7 +1,12 @@
 import torch
 from torch import Tensor, LongTensor
 from fastai.metrics import auc_roc_score, fbeta
+import sklearn.metrics.classification
 
+# ignore: sklearn UndefinedMetricWarning: F-score is ill-defined and being set to 0.0 due to no predicted samples.
+import warnings
+from sklearn.exceptions import UndefinedMetricWarning
+warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
 
 def auc_roc_score_multi(input, targ):
     """area under curve for multi category list (multiple bce losses)."""
@@ -26,6 +31,12 @@ def auc_roc_score_cls_n(y_pred, y_true, class_n=1, **args):
 
 def fbeta_binary(y_pred, y_true, **args):
     return fbeta(y_pred[:, None], y_true[:, None], **args)
+
+# def f1_binary(y_pred, y_true, **args):
+#     return fbeta(y_pred[:, None], y_true[:, None], thresh=0.5, beta=1, **args)
+
+def f1_binary(y_pred, y_true, **args):
+    return torch.tensor(sklearn.metrics.classification.f1_score(y_true[:, 1].cpu().numpy(), y_pred[:, 1].cpu().numpy()>0.5))
 
 
 def auc_roc_score(input: Tensor, targ: Tensor):
@@ -61,7 +72,7 @@ def roc_curve(input: Tensor, targ: Tensor):
 
 def accuracy_binary(input, targs):
     input = torch.sigmoid(input) > 0.5
-    return (input == targs).float().mean()
+    return (input.squeeze() == targs.squeeze()).float().mean()
 
 
 def dice_binary(input, targs, iou=False, eps=1e-8):

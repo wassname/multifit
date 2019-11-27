@@ -5,7 +5,7 @@ import dataclasses
 from fastai.callbacks import CSVLogger, SaveModelCallback
 from fastai.text import *
 
-from multifit.metrics import auc_roc_score_multi, fbeta_binary, auc_roc_score, accuracy_binary, dice_binary
+from multifit.metrics import auc_roc_score_multi, fbeta_binary, auc_roc_score, accuracy_binary, dice_binary, f1_binary
 from multifit.datasets import ULMFiTDataset, ULMFiTTokenizer
 from fastai_contrib.data_block import BinaryCategoryList
 
@@ -562,7 +562,6 @@ class ULMFiTBinaryClassifier(ULMFiTTrainingCommand):
                                         config=config,
                                         model_dir=self.model_name,
                                         **trn_args)
-        # learn.metrics =[accuracy, dice]
         learn = patch_learner(learn)
         if self.base.encoder_fname and not self.random_init:
             print("Loading pretrained model", self.base.encoder_fname)
@@ -582,7 +581,7 @@ class ULMFiTBinaryClassifier(ULMFiTTrainingCommand):
             learn.to_fp16()
         return learn
 
-    def train_(self, dataset_or_path=None, label_cls=BinaryCategoryList, metrics=[accuracy_binary, dice_binary, partial(fbeta_binary, beta=1), auc_roc_score_multi], label_cols=[0,0], **train_config):
+    def train_(self, dataset_or_path=None, label_cls=BinaryCategoryList, metrics=[accuracy_binary, dice_binary, f1_binary, auc_roc_score_multi], label_cols=[0,0], **train_config):
         self.replace_(**train_config, _strict=True)
 
         base_tokenizer = self.base.tokenizer
