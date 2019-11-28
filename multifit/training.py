@@ -167,10 +167,10 @@ class ULMFiTTrainingCommand(Params):
                 f.write(json_str)
             return json_str
 
-    def load_(self, experiment_path, tantetive=True, update_arch=True, silent=False):
+    def load_(self, experiment_path, tentative=True, update_arch=True, silent=False):
         fn = experiment_path / self.info_json
         if not fn.exists():
-            if not tantetive:
+            if not tentative:
                 warn(f"Unable to load experiment_path {experiment_path}")
             return False
         print(f"Loading {fn}")
@@ -179,7 +179,7 @@ class ULMFiTTrainingCommand(Params):
         base = d.pop('base', None)
         arch = d.pop('arch')
         if hasattr(self, 'base'):
-            self.base.load_(Path(base), tantetive=True, update_arch=False, silent=silent)
+            self.base.load_(Path(base), tentative=True, update_arch=False, silent=silent)
 
         # compatiblity with older info.json formats where lang was not stored
         self.name = experiment_path.name                # V ./de-1/models/fsp15k/multifit_fp16 -> ./de-1
@@ -263,6 +263,7 @@ class ULMFiTPretraining(ULMFiTTrainingCommand):
                 tokenizer = self.base.tokenizer
             else:
                 tokenizer = self.arch.new_tokenizer()
+        assert tokenizer is not None
 
         dataset = self._set_dataset_(dataset_or_path, tokenizer)
         learn = self.get_learner(data_lm=dataset.load_lm_databunch(bs=self.bs, bptt=self.bptt))
@@ -272,10 +273,10 @@ class ULMFiTPretraining(ULMFiTTrainingCommand):
             self._fit_schedule(learn)
 
         self.experiment_path = experiment_path
-        tokenizer.save(self.experiment_path, learn=learn)
         learn.to_fp32()
         learn.save_encoder(ENC_BEST)
         learn.save(LM_BEST, with_opt=False)
+        tokenizer.save(self.experiment_path, learn=learn)
         learn.destroy()
         self.save_paramters()
         print("Language model saved to", self.experiment_path)
@@ -351,7 +352,7 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
     arch: ULMFiTArchitecture = None
 
     def get_learner(self, data_clas, eval_only=False, loss_func=None, **additional_trn_args):
-        assert self.weighted_cross_entropy is None or self.label_smoothing_eps == 0, "Label smoohting not implemented with weighted_cross_entropy"
+        assert self.weighted_cross_entropy is None or self.label_smoothing_eps == 0, "Label smoothing not implemented with weighted_cross_entropy"
         if loss_func is None:
             if self.weighted_cross_entropy is not None:
                 loss_func = CrossEntropyFlat(weight=torch.tensor(self.weighted_cross_entropy, dtype=torch.float32).cuda())
@@ -403,6 +404,7 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
         self.replace_(**train_config, _strict=True)
 
         base_tokenizer = self.base.tokenizer
+        assert base_tokenizer
         dataset = self._set_dataset_(dataset_or_path, base_tokenizer)
         data_clas = dataset.load_clas_databunch(bs=self.bs, classes=classes, label_cls=label_cls, label_cols=label_cols)
         learn = self.get_learner(data_clas=data_clas, loss_func=loss_func)
@@ -413,15 +415,17 @@ class ULMFiTClassifier(ULMFiTTrainingCommand):
         print(f"Training: {learn.path / learn.model_dir}")
         learn.unfreeze()
         self.experiment_path = learn.path / learn.model_dir
-        self._fit_schedule(learn)
-
+        try:
+            self._fit_schedule(learn)
+        except KeyBoardInterrupt:
+            pass
         base_tokenizer.save(self.experiment_path, learn=learn)
         learn.to_fp32()
         learn.save(CLS_BEST, with_opt=False)
         print("Classifier model saved to", self.experiment_path)
         self.save_paramters()
         learn.destroy()
-        return
+        return learn
 
     def _validate(self, learn, ds_type):
         ds_name = ds_type.name.lower()
